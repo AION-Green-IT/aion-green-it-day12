@@ -51,34 +51,15 @@ export function MaterialBlock({
       {/* The diagram — the primary teaching artifact */}
       <div className="card overflow-hidden p-5">{children}</div>
 
-      {/* The written explanation */}
+      {/* The definition — kept visible; it is what the diagram illustrates */}
       <div className="max-w-prose space-y-3 text-body text-ash">
         <p>
           <span className="font-semibold text-ink">Definition. </span>
           {section.definition}
         </p>
-        <p>
-          <span className="font-semibold text-ink">Insight. </span>
-          {section.insight}
-        </p>
-        <p>
-          <span className="font-semibold text-ink">Practical takeaway. </span>
-          {section.takeaway}
-        </p>
       </div>
 
-      {section.body.map((block) => (
-        <div key={block.heading} className="max-w-prose space-y-2">
-          <h3 className="text-h3 text-ink">{block.heading}</h3>
-          {block.paragraphs.map((p, i) => (
-            <p key={i} className="text-body text-ash">
-              {p}
-            </p>
-          ))}
-        </div>
-      ))}
-
-      {/* Decision rules — what makes the section operational */}
+      {/* Decision rules — what makes the section operational, kept visible */}
       {section.reasoning.length > 0 && (
         <div className="rounded-2xl border-l-4 border-l-accent border-y border-r border-accent/25 bg-accentSoft/50 p-4">
           <p className="text-micro font-semibold uppercase tracking-wide text-accent">
@@ -95,31 +76,60 @@ export function MaterialBlock({
         </div>
       )}
 
-      <IndustryCallout label={section.callout.label} text={section.callout.text} />
+      {/* Everything else — insight, takeaway, extended body, callout, sources — collapsed by default */}
+      <details className="group">
+        <summary className="cursor-pointer text-micro font-semibold uppercase tracking-wide text-accent">
+          Read more — insight, detail and sources
+        </summary>
+        <div className="mt-3 space-y-5">
+          <div className="max-w-prose space-y-3 text-body text-ash">
+            <p>
+              <span className="font-semibold text-ink">Insight. </span>
+              {section.insight}
+            </p>
+            <p>
+              <span className="font-semibold text-ink">Practical takeaway. </span>
+              {section.takeaway}
+            </p>
+          </div>
 
-      {/* Sources */}
-      <div className="border-t border-line pt-3">
-        <p className="text-micro font-semibold uppercase tracking-wide text-ash">Sources</p>
-        <ul className="mt-1.5 space-y-1">
-          {section.references.map((r) => (
-            <li key={r.label} className="text-micro text-ash">
-              {r.url ? (
-                <a
-                  href={r.url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="font-semibold text-ink underline decoration-dotted underline-offset-2 hover:text-accent"
-                >
-                  {r.label}
-                </a>
-              ) : (
-                <span className="font-semibold text-ink">{r.label}</span>
-              )}
-              {r.detail ? <span> — {r.detail}</span> : null}
-            </li>
+          {section.body.map((block) => (
+            <div key={block.heading} className="max-w-prose space-y-2">
+              <h3 className="text-h3 text-ink">{block.heading}</h3>
+              {block.paragraphs.map((p, i) => (
+                <p key={i} className="text-body text-ash">
+                  {p}
+                </p>
+              ))}
+            </div>
           ))}
-        </ul>
-      </div>
+
+          <IndustryCallout label={section.callout.label} text={section.callout.text} />
+
+          <div className="border-t border-line pt-3">
+            <p className="text-micro font-semibold uppercase tracking-wide text-ash">Sources</p>
+            <ul className="mt-1.5 space-y-1">
+              {section.references.map((r) => (
+                <li key={r.label} className="text-micro text-ash">
+                  {r.url ? (
+                    <a
+                      href={r.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="font-semibold text-ink underline decoration-dotted underline-offset-2 hover:text-accent"
+                    >
+                      {r.label}
+                    </a>
+                  ) : (
+                    <span className="font-semibold text-ink">{r.label}</span>
+                  )}
+                  {r.detail ? <span> — {r.detail}</span> : null}
+                </li>
+              ))}
+            </ul>
+          </div>
+        </div>
+      </details>
 
       {footer}
     </Reveal>
