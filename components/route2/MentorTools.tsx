@@ -38,14 +38,14 @@ export function MentorTools() {
     // Material: mark all six hotspots read.
     for (const id of ["h1", "h2", "h3", "h4", "h5", "h6"]) toggleCheck(R2.hotspotRead(id), true);
 
-    // Section 1
+    // Exercise 1a — strategic relevance
     for (const id of ["irreversibility", "cost", "dataGovernance"]) toggleCheck(R2.relevance(id), true);
     setNote(
       R2.relevanceRationale,
       "Investment irreversibility matters because Vertex's uneven estate and its already-deployed IoT pilot fleet are both multi-year commitments that are hard to unwind. Operating cost exposure matters because the pilot fleet has no defined support period. Data governance matters because nobody currently owns the streams the new devices and radios will produce.",
     );
 
-    // Section 2 — three guiding decisions
+    // Exercise 1c — three guiding decisions
     setNote(R2.guidingText(1), "No connected device is approved without a defined support period and a named lifecycle owner.");
     choose(R2.guidingOwner(1), "cio");
     choose(R2.guidingQuarter(1), "Q1");
@@ -56,23 +56,35 @@ export function MentorTools() {
     choose(R2.guidingOwner(3), "cto");
     choose(R2.guidingQuarter(3), "Q2");
 
-    // Section 3 — decision logic
+    // Exercise 1b — decision logic
     setNote(R2.criteriaRank, serialiseCriteriaOrder(["controllability", "leverage", "sustainability"]));
     setNote(
       R2.boundary,
       "Compared to Vertex's current baseline, measured across all five sites over the next financial year, with the two already-modernised sites reported separately from the three that are not.",
     );
 
-    // Section 4 — trade-offs
+    // Exercise 2 — trade-off map: q1 = cost, q2 = friction (who pays vs who benefits)
     setNote(
       R2.tradeOffs,
       serialiseLinks([
-        { a: "innovation", b: "controllability", note: "Qualifying every 5G use case slows the visible rollout departments want, in exchange for knowing which ones are worth the spend." },
-        { a: "dataGrowth", b: "complexity", note: "Leaving the pilot fleet's telemetry running as-is avoids a migration now, at the cost of a monitoring surface nobody has sized." },
+        {
+          a: "innovation",
+          b: "controllability",
+          note: "Qualifying every 5G use case slows the visible rollout departments want, in exchange for knowing which ones are worth the spend.",
+          q1: "yes",
+          q2: "yes",
+        },
+        {
+          a: "dataGrowth",
+          b: "complexity",
+          note: "Leaving the pilot fleet's telemetry running as-is avoids a migration now, at the cost of a monitoring surface nobody has sized.",
+          q1: "yes",
+          q2: "no",
+        },
       ]),
     );
 
-    // Section 5 — first measure (A, not E)
+    // Exercise 4a — first measure (A, not E)
     choose(R2.firstMeasure, "A");
     setNote(
       R2.justification,
@@ -83,7 +95,7 @@ export function MentorTools() {
       "In-flight work under the two committed budgets continues without interruption; each is retro-checked against the new criteria at its next natural stage gate rather than stopped, so the financial year's commitments are honoured while the criteria still apply going forward.",
     );
 
-    // Section 6 — governance
+    // Exercise 3 — governance
     for (const resp of RESPONSIBILITIES) {
       for (const role of ROLES) {
         const v = DEMO_RACI[resp.id]?.[role.id];

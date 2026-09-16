@@ -362,3 +362,128 @@ export const FIRST_MEASURE_ANSWER_KEY: AnswerKeyBlock = {
   teachingNote:
     "The point of this task is not that A is secretly 'correct' and E is a trap — both are defensible. What is not defensible is choosing E with a justification that could have been written before reading Vertex's five specific conditions, or choosing any option without an explicit answer to the committed-budget question. Grade the justification's contact with Vertex's specific facts, not the letter chosen.",
 };
+
+// ---------------------------------------------------------------------------
+// Phase 3 — the task recomposed as four flat exercises (day11's pattern:
+// CLAUDE.md #14 / "4 flat exercises"). The seven SECTION_* blocks above keep
+// every field, label, option and ground-truth fact exactly as authored; this
+// block only adds the framing copy the new exercise components render
+// through, plus the trade-off map's quadrant mechanic (Exercise 2 used to be
+// a ring of links — see TensionPicker's deletion note — and now needs a
+// decide-then-discover placement the way day11's MapExercise works).
+// ---------------------------------------------------------------------------
+
+export const EXERCISE_1 = {
+  n: 1,
+  minutes: 8,
+  title: "Prioritize",
+  intro:
+    "What matters this year, in what order, and who is bound by it. Select the drivers that make this urgent for Vertex specifically, rank the criteria you will judge every later choice against, then commit to three guiding decisions with an owner and a quarter each.",
+  material: ["management", "dimensions", "measure", "roadmap"] as MaterialSectionId[],
+};
+
+export const EXERCISE_2 = {
+  n: 2,
+  minutes: 6,
+  title: "The trade-off map",
+  intro:
+    "Pick two opposing factors, then answer two diagnostic questions about that pair. Your answers place it on the map — you never drag it there, because the position is a consequence of what you decide about cost and friction, not a judgement of its own.",
+  material: ["management"] as MaterialSectionId[],
+};
+
+export const EXERCISE_3 = {
+  n: 3,
+  minutes: 3,
+  title: "Governance",
+  intro:
+    "Click a cell to cycle it through R, A, C, I and back to blank. The grid checks structure only — exactly one Accountable per row, at least one Responsible. It never tells you who should hold which letter.",
+  material: ["levers", "measure"] as MaterialSectionId[],
+};
+
+export const EXERCISE_4 = {
+  n: 4,
+  minutes: 6,
+  title: "Decide now",
+  intro:
+    "Choose the first measure, justify it against Vertex's own conditions, and commit to the one decision that cannot wait for complete data. Check your memo when you are ready — it reads your own answers back for internal consistency, never the grade.",
+  material: ["measure"] as MaterialSectionId[],
+};
+
+// ---------------------------------------------------------------------------
+// Exercise 2's diagnostics — replaces the ring-link picker's single free-text
+// "what is given up, and who feels it" note with two structured yes/no
+// questions per pair. There is no fixed correct quadrant for a given factor
+// pair (unlike day11's MAP_MEASURES, which carry ground truth) — which pair
+// is a "real" trade-off for Vertex is the learner's own judgement call, the
+// same way day11's RankExercise deliberately does not grade an order because
+// "there is no single correct one" (day11/lib/route2/task.ts, RANK_EXERCISE).
+// So this map is decide-then-discover and undo/redo-able, but not graded.
+// ---------------------------------------------------------------------------
+
+export type TradeoffAnswer = "yes" | "no";
+
+export type TradeoffQuadrantId = "board" | "internal" | "friction" | "notReal";
+
+export type TradeoffQuadrant = {
+  id: TradeoffQuadrantId;
+  label: string;
+  costHigh: boolean;
+  frictionHigh: boolean;
+  note: string;
+};
+
+export const TRADEOFF_QUADRANTS: TradeoffQuadrant[] = [
+  {
+    id: "board",
+    label: "Genuine board trade-off",
+    costHigh: true,
+    frictionHigh: true,
+    note: "Real capacity is spent, and a different role feels the cost than the one who benefits — this is what actually reaches a board.",
+  },
+  {
+    id: "internal",
+    label: "Internal cost only",
+    costHigh: true,
+    frictionHigh: false,
+    note: "Expensive, but absorbed inside one role. Rarely needs to reach a board on its own.",
+  },
+  {
+    id: "friction",
+    label: "Political friction, low real cost",
+    costHigh: false,
+    frictionHigh: true,
+    note: "Visible disagreement over something that is cheap to resolve — worth naming, not worth escalating alone.",
+  },
+  {
+    id: "notReal",
+    label: "Not a real trade-off",
+    costHigh: false,
+    frictionHigh: false,
+    note: "Section 4's own helper text: if both sides can be maximised at once, it is not a trade-off.",
+  },
+];
+
+export const tradeoffQuadrantFor = (costHigh: boolean, frictionHigh: boolean): TradeoffQuadrantId =>
+  frictionHigh ? (costHigh ? "board" : "friction") : costHigh ? "internal" : "notReal";
+
+export const tradeoffQuadrantById = (id: TradeoffQuadrantId) => TRADEOFF_QUADRANTS.find((q) => q.id === id)!;
+
+export const TRADEOFF_QUESTIONS = {
+  q1: {
+    key: "q1" as const,
+    label: "Cost",
+    question:
+      "If both sides of this pair were pushed to their maximum at the same time, would something concrete at Vertex break or get worse?",
+    yes: "Yes — something concrete gives way",
+    no: "No — both sides could be maximised without real cost",
+    instruction: "Cost is about a concrete effect, not a general worry.",
+  },
+  q2: {
+    key: "q2" as const,
+    label: "Friction",
+    question: "Does the cost of this trade-off land on a different role than the one who benefits from it?",
+    yes: "Yes — one role pays, another gains",
+    no: "No — the same role absorbs both sides",
+    instruction: "Friction is about who feels the cost, not how large it is.",
+  },
+} as const;

@@ -31,39 +31,46 @@ export const LEARNER_NAME_KEY = "learner:name";
 export const R1 = {
   name: LEARNER_NAME_KEY,
 
-  // -- Part 1: the Signal Board ---------------------------------------------
+  // -- Part 1, Step 1: triage (all six signals) ------------------------------
+  /** "technology" | "governance" — the triage tag, then reused as the deep-dive's root-cause record. */
+  rootCause: (signalId: string) => `r1:root:${signalId}`,
+  /** Index into signal.segments of the tapped evidence phrase. */
+  evidence: (signalId: string) => `r1:evidence:${signalId}`,
+  triageChecks: "r1:triage:checks",
+  triageLastSig: "r1:triage:lastsig",
+  triageLastOk: "r1:triage:lastok",
+  triageClue: "r1:triage:clue",
+  triageReveal: "r1:triage:reveal",
+  triageRevealAt: "r1:triage:revealat",
+
+  // -- Part 1, Step 2: escalate ----------------------------------------------
+  /** "|"-joined signal ids, at most ESCALATE.limit. */
+  escalate: "r1:escalate",
+  escalateWhy: "r1:escalate:why",
+
+  // -- Part 1, Step 3: deep dive (only the escalated signals) ---------------
   /** "potential" | "risk" | "both" */
   reading: (signalId: string) => `r1:reading:${signalId}`,
   /** The one-line justification required when the reading is "both". */
   bothWhy: (signalId: string) => `r1:bothwhy:${signalId}`,
-  /** The zone the signal is routed to. */
+  /** The zone the signal is diagnosed to. */
   zone: (signalId: string) => `r1:zone:${signalId}`,
-  approach: (signalId: string) => `r1:approach:${signalId}`,
-  /** "technology" | "governance" */
-  rootCause: (signalId: string) => `r1:root:${signalId}`,
   /** "short" | "structural" */
   horizon: (signalId: string) => `r1:horizon:${signalId}`,
-  /**
-   * Which signal card is expanded. Persisted rather than component-local so a
-   * missing-item click can open the right card before scrolling to a field
-   * inside it — a missing entry that lands on a collapsed panel is a dead
-   * click, which CLAUDE.md #2 does not allow.
-   */
-  openSignal: "r1:open",
-  /** markSeen bucket: the order signals were first routed. */
-  routed: "r1:routed",
-  /** JSON log of "Check my routing" presses: [{ at, clues }]. Exported for grading. */
-  checkLog: "r1:checklog",
+  approach: (signalId: string) => `r1:approach:${signalId}`,
+  analysisChecks: (signalId: string) => `r1:analysis:checks:${signalId}`,
+  analysisLastSig: (signalId: string) => `r1:analysis:lastsig:${signalId}`,
+  analysisReveal: (signalId: string) => `r1:analysis:reveal:${signalId}`,
 
   // -- Part 2: the Decision Scorecard ---------------------------------------
-  /** One key per criterion, holding the three rank slots as "B|A|C" ("" = empty slot). */
-  rank: (criterionId: string) => `r1:rank:${criterionId}`,
+  /** One key per option × criterion cell. Stored as "low" | "mid" | "high"; unset = not predicted. */
+  predict: (optionId: string, criterionId: string) => `r1:predict:${optionId}:${criterionId}`,
+  /** toggleCheck: the whole 7×3 grid has been revealed — one flag, not one per option. */
+  revealed: "r1:revealed",
   chosen: "r1:chosen",
   justification: "r1:justification",
   followUp: (n: 1 | 2) => `r1:followup:${n}`,
   risk: (n: 1 | 2) => `r1:risk:${n}`,
-  /** JSON log of "Check my reasoning" presses. */
-  reasonLog: "r1:reasonlog",
 
   // -- Material --------------------------------------------------------------
   /** A micro-check answer. Not graded, never part of the missing list. */
@@ -119,20 +126,16 @@ export const NAME_FIELD = {
 export const HANDOVER = {
   id: "r1-handover",
   kicker: "Handover",
-  heading: "You can see the system. Now decide what to fund.",
-  body: "A board of signals is not a decision. SmartLink can prioritise one line of measures, and the signals you routed are the evidence each option has to answer to.",
-  tally: (p: {
-    routed: number;
-    total: number;
-    zonesUsed: number;
-    governance: number;
-    technology: number;
-    short: number;
-    structural: number;
-  }) =>
-    p.routed === 0
-      ? "No signals routed yet — the split below fills in as you work the board."
-      : `You routed ${p.routed} of ${p.total} signal${p.total === 1 ? "" : "s"} across ${p.zonesUsed} of 7 zones: ${p.governance} tagged as a missing governance or architecture decision, ${p.technology} as technology use — ${p.short} visible short-term, ${p.structural} structurally effective.`,
+  heading: "You can see the pattern. Now decide what to fund.",
+  body: "A triaged board is not a decision. SmartLink can prioritise one line of measures, and the pattern you found — plus the two signals you escalated — is the evidence each option has to answer to.",
+  tally: (p: { triaged: number; total: number; governance: number; technology: number }) =>
+    p.triaged === 0
+      ? "No signals triaged yet — the split below fills in as you work through Step 1."
+      : `You triaged ${p.triaged} of ${p.total} signal${p.total === 1 ? "" : "s"}: ${p.governance} tagged as a missing governance or architecture decision, ${p.technology} as technology use.`,
+  escalatedNote: (escalated: { n: number; title: string }[]) =>
+    escalated.length === 0
+      ? "No signals escalated yet."
+      : `Escalated for a deeper look: ${escalated.map((s) => `Signal ${s.n} (${s.title})`).join(", ")}.`,
   carry:
     "Carry one rule across: a technology that is more efficient per unit is not a decision about total consumption. Someone still has to decide what gets connected, measured and retired.",
   cta: "Continue to Part 2",

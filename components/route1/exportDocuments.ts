@@ -5,13 +5,13 @@ import {
   HORIZONS,
   READINGS,
   ROOT_CAUSES,
+  bucketForRank,
+  bucketLabel,
   optionById,
   zoneById,
-  type OptionId,
 } from "@/lib/route1";
 import { CASE } from "@/lib/routes";
 import type { Route1State } from "./useRoute1";
-import { OPTION_HEX } from "./optionStyle";
 
 /**
  * The route's single export: one JSON for grading and one print-ready HTML
@@ -30,17 +30,17 @@ import { OPTION_HEX } from "./optionStyle";
 const readingLabel = (id: string | null) => READINGS.find((r) => r.id === id)?.label ?? "—";
 const rootLabel = (id: string | null) => ROOT_CAUSES.find((r) => r.id === id)?.label ?? "—";
 const horizonLabel = (id: string | null) => HORIZONS.find((h) => h.id === id)?.label ?? "—";
-const zoneLabel = (id: string | null) => (id ? zoneById(id as never).name : "— not assigned, still in Intake");
+const zoneLabel = (id: string | null) => (id ? zoneById(id as never).name : "— not assigned");
 
-/** Describes the learner's own distribution factually — never evaluates it (§8.7.4). */
+/** Describes the learner's own triage pattern factually — never evaluates it (§8.7.4). */
 function patternNote(r1: Route1State): string {
   const t = r1.tally;
-  if (t.routed === 0) return "No signals have been routed yet.";
+  if (t.triaged === 0) return "No signals have been triaged yet.";
   const parts: string[] = [
-    `${t.routed} of ${t.total} signals routed across ${t.zonesUsed} of 7 zones.`,
-    `${t.governance} of ${t.routed} attributed to a missing governance or architecture decision, ${t.technology} to technology use.`,
-    `${t.short} tagged visible short-term, ${t.structural} tagged structurally effective.`,
-    `${t.potential} read as sustainability potential, ${t.risk} as risk, ${t.both} as both.`,
+    `${t.triaged} of ${t.total} signals triaged: ${t.governance} attributed to a missing governance or architecture decision, ${t.technology} to technology use.`,
+    r1.escalated.length === 0
+      ? "No signals escalated yet."
+      : `Escalated for a deeper look: ${r1.escalatedSignals.map((s) => `Signal ${s.n} — ${s.title}`).join("; ")}.`,
   ];
   return parts.join(" ");
 }
@@ -65,45 +65,66 @@ export function buildEngagementJson(r1: Route1State, filename: string, incomplet
     partOne: {
       label: EXPORT.partOne,
       level: 1,
-      signals: r1.signals.map((s) => ({
-        id: s.signal.id,
-        n: s.signal.n,
-        title: s.signal.title,
-        signalText: s.signal.text,
-        reading: s.reading,
-        bothJustification: s.bothWhy || null,
-        zone: s.zone,
-        zoneName: s.zone ? zoneById(s.zone).name : null,
-        withinDefensibleSet: s.zone ? s.signal.acceptableZones.includes(s.zone) : null,
-        improvementApproach: s.approach,
-        rootCause: s.rootCause,
-        horizon: s.horizon,
-        complete: s.complete,
+      triage: r1.triage.map((t) => ({
+        id: t.signal.id,
+        n: t.signal.n,
+        title: t.signal.title,
+        signalText: t.signal.text,
+        rootCause: t.tag,
+        rootCauseName: t.tag ? rootLabel(t.tag) : null,
+        evidence: t.evidenceText,
+        complete: t.complete,
       })),
-      distribution: {
-        routed: r1.tally.routed,
+      triageChecks: r1.triageChecks,
+      triageDistribution: {
+        triaged: r1.tally.triaged,
         total: r1.tally.total,
-        zonesUsed: r1.tally.zonesUsed,
         technologyUse: r1.tally.technology,
         missingGovernance: r1.tally.governance,
-        visibleShortTerm: r1.tally.short,
-        structurallyEffective: r1.tally.structural,
-        readPotential: r1.tally.potential,
-        readRisk: r1.tally.risk,
-        readBoth: r1.tally.both,
       },
+      escalated: r1.escalatedSignals.map((s) => ({ id: s.id, n: s.n, title: s.title })),
+      escalationJustification: r1.escalateWhy,
+      deepDive: r1.analyses.map((a) => ({
+        id: a.signal.id,
+        n: a.signal.n,
+        title: a.signal.title,
+        reading: a.reading,
+        bothJustification: a.bothWhy || null,
+        zone: a.zone,
+        zoneName: zoneLabel(a.zone),
+        withinDefensibleSet: a.zone ? a.signal.acceptableZones.includes(a.zone) : null,
+        horizon: a.horizon,
+        improvementApproach: a.approach,
+        checks: a.checks,
+        complete: a.complete,
+      })),
       patternNote: patternNote(r1),
     },
 
     partTwo: {
       label: EXPORT.partTwo,
       level: 2,
-      matrix: CRITERIA.map((c) => ({
-        criterion: c.id,
-        name: c.name,
-        ranks: { A: r1.ranks[c.id].A, B: r1.ranks[c.id].B, C: r1.ranks[c.id].C },
+      revealed: r1.revealedAll,
+      options: r1.optionStates.map((s) => ({
+        id: s.option.id,
+        name: s.option.name,
+        criteria: CRITERIA.map((c) => {
+          const predicted = s.predictions[c.id] ?? null;
+          const groundTruthRank = c.expected[s.option.id];
+          const groundTruthBucket = bucketForRank(groundTruthRank);
+          return {
+            id: c.id,
+            name: c.name,
+            predictedBucket: predicted,
+            groundTruthRank,
+            groundTruthBucket,
+            correct: predicted ? predicted === groundTruthBucket : null,
+          };
+        }),
+        hitCount: CRITERIA.filter(
+          (c) => s.predictions[c.id] && s.predictions[c.id] === bucketForRank(c.expected[s.option.id]),
+        ).length,
       })),
-      rankSums: r1.rankSums,
       chosen: r1.chosen,
       chosenOption: r1.chosen ? optionById(r1.chosen).name : null,
       justification: r1.justification,
@@ -118,46 +139,6 @@ export function buildEngagementJson(r1: Route1State, filename: string, incomplet
 const esc = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 const nl2br = (s: string) => esc(s).replace(/\n/g, "<br/>");
 
-/** Inline SVG of the radar (§10.5): three profiles from the learner's own ranks, standalone markup. */
-function radarSvg(r1: Route1State): string {
-  const cx = 220;
-  const cy = 190;
-  const rad = 130;
-  const n = CRITERIA.length;
-  const point = (i: number, v: number) => {
-    const a = -Math.PI / 2 + (i * 2 * Math.PI) / n;
-    const r = (v / 3) * rad;
-    return [cx + r * Math.cos(a), cy + r * Math.sin(a)] as const;
-  };
-  const rings = [1, 2, 3]
-    .map((k) => {
-      const pts = CRITERIA.map((_, i) => point(i, k).join(",")).join(" ");
-      return `<polygon points="${pts}" fill="none" stroke="#E2E5E9" stroke-width="1"/>`;
-    })
-    .join("");
-  const spokes = CRITERIA.map((_, i) => {
-    const [x, y] = point(i, 3);
-    return `<line x1="${cx}" y1="${cy}" x2="${x.toFixed(1)}" y2="${y.toFixed(1)}" stroke="#E2E5E9" stroke-width="1"/>`;
-  }).join("");
-  const dashFor: Record<OptionId, string> = { A: "", B: "7,4", C: "2,4" };
-  const polys = (["A", "B", "C"] as OptionId[])
-    .map((o) => {
-      const pts = CRITERIA.map((c, i) => point(i, r1.ranks[c.id][o] ? 4 - r1.ranks[c.id][o]! : 0).join(",")).join(" ");
-      const dash = dashFor[o];
-      return `<polygon points="${pts}" fill="${OPTION_HEX[o]}" fill-opacity="0.08" stroke="${OPTION_HEX[o]}" stroke-width="2.4"${
-        dash ? ` stroke-dasharray="${dash}"` : ""
-      }/>`;
-    })
-    .join("");
-  const labels = CRITERIA.map((c, i) => {
-    const [x, y] = point(i, 3.55);
-    const anchor = Math.cos(-Math.PI / 2 + (i * 2 * Math.PI) / n) > 0.15 ? "start" : Math.cos(-Math.PI / 2 + (i * 2 * Math.PI) / n) < -0.15 ? "end" : "middle";
-    return `<text x="${x.toFixed(1)}" y="${y.toFixed(1)}" text-anchor="${anchor}" font-size="11" fill="#5E6670">${esc(c.axis)}</text>`;
-  }).join("");
-
-  return `<svg viewBox="0 0 440 380" role="img" aria-label="Rank matrix radar" style="max-width:420px;width:100%;height:auto">${rings}${spokes}${polys}${labels}</svg>`;
-}
-
 /** Standalone, print-ready HTML — no external stylesheet, prints cleanly to A4. */
 export function buildEngagementHtml(r1: Route1State, incomplete: boolean): string {
   const date = new Date().toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" });
@@ -165,23 +146,47 @@ export function buildEngagementHtml(r1: Route1State, incomplete: boolean): strin
     .filter(Boolean)
     .join(" · ");
 
-  const signalRows = r1.signals
+  const triageRows = r1.triage
     .map(
-      (s) => `<tr>
-      <td><strong>${s.signal.n}. ${esc(s.signal.title)}</strong></td>
-      <td>${esc(readingLabel(s.reading))}${s.bothWhy ? `<div class="muted">${esc(s.bothWhy)}</div>` : ""}</td>
-      <td>${esc(zoneLabel(s.zone))}</td>
-      <td>${esc(s.approach) || '<span class="muted">not written</span>'}</td>
-      <td class="nowrap">${esc(rootLabel(s.rootCause))}</td>
-      <td class="nowrap">${esc(horizonLabel(s.horizon))}</td>
+      (t) => `<tr>
+      <td><strong>${t.signal.n}. ${esc(t.signal.title)}</strong></td>
+      <td class="nowrap">${esc(rootLabel(t.tag))}</td>
+      <td>${t.evidenceText ? `&ldquo;${esc(t.evidenceText)}&rdquo;` : '<span class="muted">not tapped</span>'}</td>
     </tr>`,
     )
     .join("");
 
-  const matrixRows = CRITERIA.map((c) => {
-    const r = r1.ranks[c.id];
-    return `<tr><td>${esc(c.name)}</td><td class="num">${r.A ?? "—"}</td><td class="num">${r.B ?? "—"}</td><td class="num">${r.C ?? "—"}</td></tr>`;
-  }).join("");
+  const deepDiveRows = r1.analyses
+    .map(
+      (a) => `<tr>
+      <td><strong>${a.signal.n}. ${esc(a.signal.title)}</strong></td>
+      <td>${esc(readingLabel(a.reading))}${a.bothWhy ? `<div class="muted">${esc(a.bothWhy)}</div>` : ""}</td>
+      <td>${esc(zoneLabel(a.zone))}</td>
+      <td class="nowrap">${esc(horizonLabel(a.horizon))}</td>
+      <td>${esc(a.approach) || '<span class="muted">not written</span>'}</td>
+    </tr>`,
+    )
+    .join("");
+
+  const optionBlocks = r1.optionStates
+    .map(
+      (s) => `<h3>Option ${s.option.id} — ${esc(s.option.short)}</h3>
+    <table>
+      <thead><tr><th>Criterion</th><th class="num">Predicted</th><th class="num">Model</th><th class="num">Match</th></tr></thead>
+      <tbody>${CRITERIA.map((c) => {
+        const predicted = s.predictions[c.id] ?? null;
+        const actualBucket = bucketForRank(c.expected[s.option.id]);
+        const match = predicted ? predicted === actualBucket : null;
+        return `<tr>
+          <td>${esc(c.name)}</td>
+          <td class="num">${esc(bucketLabel(predicted))}</td>
+          <td class="num">${r1.revealedAll ? esc(bucketLabel(actualBucket)) : "—"}</td>
+          <td class="num">${r1.revealedAll && match !== null ? (match ? "✓" : "✕") : "—"}</td>
+        </tr>`;
+      }).join("")}</tbody>
+    </table>`,
+    )
+    .join("");
 
   const bullets = (items: string[], empty: string) =>
     items.filter(Boolean).length
@@ -226,8 +231,6 @@ export function buildEngagementHtml(r1: Route1State, incomplete: boolean): strin
   .pick strong { display: block; font-size: 16px; margin-bottom: 4px; }
   .summary { margin-top: 10px; padding: 14px 16px; border-radius: 10px; background: #EEF1F3; }
   .summary strong { display: block; font-size: 16px; }
-  .legend { display: flex; gap: 14px; flex-wrap: wrap; font-size: 12px; color: #5E6670; margin-top: 6px; }
-  .legend span.sw { display: inline-block; width: 18px; height: 3px; margin-right: 5px; vertical-align: middle; }
   ul { margin: 8px 0 0; padding-left: 20px; }
   li { margin-bottom: 6px; }
   footer { margin-top: 32px; border-top: 1px solid #E2E5E9; padding-top: 14px;
@@ -254,16 +257,26 @@ export function buildEngagementHtml(r1: Route1State, incomplete: boolean): strin
 
   <p class="part">${esc(EXPORT.partOne)}</p>
 
-  <h2>Signals</h2>
+  <h2>Step 1 — Triage (all six signals)</h2>
   <table>
-    <thead><tr><th>Signal</th><th>Reading</th><th>Area</th><th>Improvement approach</th><th>Root cause</th><th>Horizon</th></tr></thead>
-    <tbody>${signalRows}</tbody>
+    <thead><tr><th>Signal</th><th>Root cause</th><th>Evidence phrase</th></tr></thead>
+    <tbody>${triageRows}</tbody>
+  </table>
+
+  <h2>Step 2 — Escalated for a deeper look</h2>
+  <p>${r1.escalatedSignals.length ? esc(r1.escalatedSignals.map((s) => `Signal ${s.n} — ${s.title}`).join("; ")) : '<span class="muted">None escalated yet.</span>'}</p>
+  <p>${r1.escalateWhy ? nl2br(r1.escalateWhy) : '<span class="muted">No justification written.</span>'}</p>
+
+  <h2>Step 3 — Deep dive on the escalated signals</h2>
+  <table>
+    <thead><tr><th>Signal</th><th>Reading</th><th>Area</th><th>Horizon</th><th>Improvement approach</th></tr></thead>
+    <tbody>${deepDiveRows || '<tr><td colspan="5" class="muted">No signals escalated yet.</td></tr>'}</tbody>
   </table>
 
   <h2>Distribution summary</h2>
   <div class="summary">
-    <strong>${r1.tally.routed} of ${r1.tally.total} signals routed across ${r1.tally.zonesUsed} of 7 zones.</strong>
-    <span class="muted">${r1.tally.technology} technology use · ${r1.tally.governance} missing governance or architecture decision — ${r1.tally.short} visible short-term · ${r1.tally.structural} structurally effective.</span>
+    <strong>${r1.tally.triaged} of ${r1.tally.total} signals triaged.</strong>
+    <span class="muted">${r1.tally.technology} technology use · ${r1.tally.governance} missing governance or architecture decision.</span>
   </div>
 
   <h2>Pattern note</h2>
@@ -271,20 +284,9 @@ export function buildEngagementHtml(r1: Route1State, incomplete: boolean): strin
 
   <p class="part">${esc(EXPORT.partTwo)}</p>
 
-  <h2>7 × 3 rank matrix</h2>
-  <table>
-    <thead><tr><th>Criterion</th><th class="num">A</th><th class="num">B</th><th class="num">C</th></tr></thead>
-    <tbody>${matrixRows}</tbody>
-  </table>
-  <p class="muted">Rank 1 = strongest on that criterion. Rank sums — A: ${r1.rankSums.A}, B: ${r1.rankSums.B}, C: ${r1.rankSums.C} (a summary of judgement, not a score of correctness).</p>
-
-  <h2>Ranking as a radar</h2>
-  ${radarSvg(r1)}
-  <div class="legend">
-    <span><span class="sw" style="background:${OPTION_HEX.A}"></span>Option A</span>
-    <span><span class="sw" style="background:${OPTION_HEX.B};border-bottom:1px dashed ${OPTION_HEX.B}"></span>Option B</span>
-    <span><span class="sw" style="background:${OPTION_HEX.C};border-bottom:1px dotted ${OPTION_HEX.C}"></span>Option C</span>
-  </div>
+  <h2>Profile against the model — 7 criteria × 3 options</h2>
+  ${optionBlocks}
+  <p class="muted">${r1.revealedAll ? "Model profile revealed." : "Model profile not yet revealed."}</p>
 
   <h2>Prioritised option</h2>
   <div class="pick">

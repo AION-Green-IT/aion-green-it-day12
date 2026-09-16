@@ -2,11 +2,11 @@
 
 import { useProgress } from "@/lib/store";
 import type { PlacementMap } from "@/lib/usePlacementHistory";
-import { CRITERIA, R2, RESPONSIBILITIES, ROLES, type CriterionId, type FactorId } from "@/lib/route2";
+import { CRITERIA, R2, RESPONSIBILITIES, ROLES, type CriterionId, type FactorId, type TradeoffAnswer } from "@/lib/route2";
 import type { RaciCell } from "@/components/ui/RaciGrid";
 import { useCriteriaHistory, useRaciHistory, useTradeOffHistory } from "./history";
 import { addCriterion, moveCriterion, parseCriteriaOrder, removeCriterion, serialiseCriteriaOrder, type CriteriaOrder } from "./ranking";
-import { addLink, parseLinks, removeLink, serialiseLinks, setLinkNote, type TradeOffLink } from "./tradeoffs";
+import { addLink, parseLinks, removeLink, serialiseLinks, setLinkAnswer, setLinkNote, type TradeOffLink } from "./tradeoffs";
 
 const currentNotes = () => useProgress.getState().notes;
 const currentChoices = () => useProgress.getState().choices;
@@ -80,6 +80,12 @@ export function useTradeOffActions() {
   const remove = (a: FactorId, b: FactorId) => applyLinks(removeLink(parseLinks(currentNotes()[R2.tradeOffs]), a, b));
   const setNoteText = (a: FactorId, b: FactorId, note: string) => setNote(R2.tradeOffs, serialiseLinks(setLinkNote(parseLinks(currentNotes()[R2.tradeOffs]), a, b, note)));
 
+  /** One diagnostic answer for a pair — recorded in the same undo history as the links themselves. */
+  const answer = (a: FactorId, b: FactorId, key: "q1" | "q2", value: TradeoffAnswer) => {
+    record(snapshot());
+    setNote(R2.tradeOffs, serialiseLinks(setLinkAnswer(parseLinks(currentNotes()[R2.tradeOffs]), a, b, key, value)));
+  };
+
   const undo = () => {
     const snap = undoStack(snapshot());
     if (snap) restore(snap);
@@ -89,7 +95,7 @@ export function useTradeOffActions() {
     if (snap) restore(snap);
   };
 
-  return { clickFactor, remove, setNoteText, undo, redo, canUndo, canRedo };
+  return { clickFactor, remove, setNoteText, answer, undo, redo, canUndo, canRedo };
 }
 
 /** Section 6 — the RACI grid, with its own undo history. */

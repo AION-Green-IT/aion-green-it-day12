@@ -15,7 +15,7 @@ import { useRoute1, domId } from "./useRoute1";
 export function Handover() {
   const r1 = useRoute1();
   const t = r1.tally;
-  const complete = t.complete === t.total;
+  const complete = t.triaged === t.total;
 
   return (
     <section
@@ -34,19 +34,12 @@ export function Handover() {
         <h2 className="text-h2 text-ink">{HANDOVER.heading}</h2>
 
         <div className={clsx("rounded-xl border px-4 py-3", complete ? "border-accent/30 bg-accentSoft" : "border-line bg-canvas")}>
-          <p className="text-micro font-semibold uppercase tracking-wide text-accent">From your own board</p>
+          <p className="text-micro font-semibold uppercase tracking-wide text-accent">From your own triage</p>
           <p className="mt-1 text-caption text-ink">
-            {HANDOVER.tally({
-              routed: t.routed,
-              total: t.total,
-              zonesUsed: t.zonesUsed,
-              governance: t.governance,
-              technology: t.technology,
-              short: t.short,
-              structural: t.structural,
-            })}
+            {HANDOVER.tally({ triaged: t.triaged, total: t.total, governance: t.governance, technology: t.technology })}
           </p>
-          <SplitBars governance={t.governance} technology={t.technology} short={t.short} structural={t.structural} />
+          <SplitBars governance={t.governance} technology={t.technology} />
+          <p className="mt-3 text-caption text-ink">{HANDOVER.escalatedNote(r1.escalatedSignals)}</p>
         </div>
 
         <p className="max-w-prose text-body text-ash">{HANDOVER.body}</p>
@@ -61,27 +54,12 @@ export function Handover() {
   );
 }
 
-function SplitBars({
-  governance,
-  technology,
-  short,
-  structural,
-}: {
-  governance: number;
-  technology: number;
-  short: number;
-  structural: number;
-}) {
+function SplitBars({ governance, technology }: { governance: number; technology: number }) {
   const rows = [
     {
       label: "Root cause",
       left: { value: governance, label: "Missing governance or architecture decision", className: "fill-ink" },
       right: { value: technology, label: "Technology use", className: "fill-ash/60" },
-    },
-    {
-      label: "Time horizon",
-      left: { value: short, label: "Visible short-term", className: "fill-accent/50" },
-      right: { value: structural, label: "Structurally effective", className: "fill-accent" },
     },
   ];
 

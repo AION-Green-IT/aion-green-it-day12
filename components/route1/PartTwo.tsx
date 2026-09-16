@@ -1,31 +1,25 @@
 "use client";
 
-import { undoRedoKeyHandler } from "@/lib/undoShortcuts";
 import { SectionHeading } from "@/components/ui/SectionHeading";
 import { MaterialRefs } from "@/components/ui/MaterialRefs";
-import { LivePanel } from "@/components/ui/LivePanel";
 import { SeriesSwatch } from "@/components/ui/RadarChart";
-import { BRIEF, OPTIONS, PART_TWO, RADAR, materialRefs, type ScoreOption } from "@/lib/route1";
-import { useMatrixActions } from "./actions";
-import { RankMatrix } from "./RankMatrix";
-import { LiveRadar } from "./LiveRadar";
+import { BRIEF, OPTIONS, PART_TWO, materialRefs, type ScoreOption } from "@/lib/route1";
+import { PredictionGrid } from "./PredictionGrid";
 import { CommitPanel } from "./CommitPanel";
-import { ReasoningCheck } from "./ReasoningCheck";
 import { OPTION_STYLE } from "./optionStyle";
 import { useRoute1, domId } from "./useRoute1";
 
 /**
  * Part 2 — the Decision Scorecard (level 2). The brief once, the three options
- * with their concrete scope, the ranking matrix beside the live radar, then the
- * commit and the reasoning check. Ctrl/⌘+Z works anywhere in this part, on the
- * matrix's own history.
+ * with their concrete scope, one shared prediction grid (CLAUDE.md #14), then
+ * the commit. Matches day11's simpler "predict-then-reveal grid" pattern —
+ * no drag-to-rank matrix, no live radar, no free-text reasoning parser.
  */
 export function PartTwo() {
   const r1 = useRoute1();
-  const matrix = useMatrixActions();
 
   return (
-    <section id={domId.partTwo} className="scroll-mt-24 space-y-6" onKeyDown={undoRedoKeyHandler(matrix.undo, matrix.redo)}>
+    <section id={domId.partTwo} className="scroll-mt-24 space-y-6">
       <SectionHeading kicker={`${PART_TWO.tag} · about ${PART_TWO.minutes} minutes`} title={PART_TWO.title} />
 
       <MaterialRefs refs={materialRefs(["lens", "system", "uncertainty"])} lead="This part draws on" />
@@ -52,16 +46,9 @@ export function PartTwo() {
         ))}
       </div>
 
-      <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_360px]">
-        <RankMatrix r1={r1} matrix={matrix} />
-        <LivePanel title={RADAR.title} summary={`${r1.rankedRows} of 7 criteria fully ranked`}>
-          <LiveRadar r1={r1} />
-        </LivePanel>
-      </div>
+      <PredictionGrid />
 
       <CommitPanel r1={r1} />
-
-      <ReasoningCheck r1={r1} />
     </section>
   );
 }

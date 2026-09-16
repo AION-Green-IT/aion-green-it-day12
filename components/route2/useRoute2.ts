@@ -12,7 +12,6 @@ import {
   RESPONSIBILITIES,
   ROLES,
   SECTION_1,
-  SECTION_2,
   SECTION_3,
   SECTION_5,
   SECTION_6,
@@ -20,59 +19,73 @@ import {
   SELF_ASSESSMENT_ITEMS,
   TRADEOFF_MIN,
   factorLabel,
+  isFactorId,
   isOptionId,
   isQuarter,
   isRoleId,
   isSelfAssessmentValue,
+  tradeoffQuadrantFor,
   type OptionId,
   type Quarter,
   type RelevanceId,
   type ResponsibilityId,
   type RoleId,
   type SelfAssessmentValue,
+  type TradeoffQuadrantId,
 } from "@/lib/route2";
 import type { RaciCell } from "@/components/ui/RaciGrid";
 import { validate as validateRaci } from "@/components/ui/RaciGrid";
 import { parseCriteriaOrder } from "./ranking";
-import { parseLinks } from "./tradeoffs";
+import { parseLinks, type TradeOffLink } from "./tradeoffs";
 
-/** DOM ids the missing list, clues and reference chips scroll to. */
+/**
+ * DOM ids the missing list, clues and reference chips scroll to. Phase 3
+ * folds nine section containers into four exercise containers — the KEYS
+ * below are unchanged from the nine-section version (so clues.ts,
+ * ExportBar.tsx and MemoPreview.tsx, which all address these fields by name,
+ * needed no edits), only the underlying string VALUES now nest under the new
+ * r2-ex1..r2-ex4 containers.
+ */
 export const domId = {
   name: "r2-name",
   task: "r2-task",
 
-  relevance: "r2-s1",
-  relevanceDriver: "r2-s1-drivers",
-  relevanceRationale: "r2-s1-rationale",
+  // Exercise 1 — Prioritize (was: Relevance + Guiding decisions + Decision logic)
+  relevance: "r2-ex1-relevance",
+  relevanceDriver: "r2-ex1-relevance-drivers",
+  relevanceRationale: "r2-ex1-relevance-rationale",
+  guiding: "r2-ex1-guiding",
+  guidingText: (n: 1 | 2 | 3) => `r2-ex1-guiding-${n}-text`,
+  guidingOwner: (n: 1 | 2 | 3) => `r2-ex1-guiding-${n}-owner`,
+  guidingQuarter: (n: 1 | 2 | 3) => `r2-ex1-guiding-${n}-quarter`,
+  logic: "r2-ex1-logic",
+  criteriaRank: "r2-ex1-logic-rank",
+  boundary: "r2-ex1-logic-boundary",
 
-  guiding: "r2-s2",
-  guidingText: (n: 1 | 2 | 3) => `r2-s2-${n}-text`,
-  guidingOwner: (n: 1 | 2 | 3) => `r2-s2-${n}-owner`,
-  guidingQuarter: (n: 1 | 2 | 3) => `r2-s2-${n}-quarter`,
+  // Exercise 2 — The trade-off map (was: Trade-offs + TensionPicker)
+  tradeoffs: "r2-ex2",
+  tradeoffPair: (a: string, b: string) => `r2-ex2-${a}-${b}`,
+  tradeoffQ1: (a: string, b: string) => `r2-ex2-${a}-${b}-q1`,
+  tradeoffQ2: (a: string, b: string) => `r2-ex2-${a}-${b}-q2`,
+  tradeoffNote: (a: string, b: string) => `r2-ex2-${a}-${b}-note`,
 
-  logic: "r2-s3",
-  criteriaRank: "r2-s3-rank",
-  boundary: "r2-s3-boundary",
+  // Exercise 3 — Governance (was: Governance)
+  governance: "r2-ex3",
+  raciRow: (id: string) => `r2-ex3-row-${id}`,
+  reviewMechanism: "r2-ex3-review",
 
-  tradeoffs: "r2-s4",
-  tradeoffNote: (a: string, b: string) => `r2-s4-note-${a}-${b}`,
+  // Exercise 4 — Decide now (was: First measure + Decide now + Check memo + Self-assessment)
+  decideNow: "r2-ex4",
+  measure: "r2-ex4-measure",
+  firstMeasure: "r2-ex4-measure-option",
+  justification: "r2-ex4-measure-justification",
+  committedBudget: "r2-ex4-measure-budget",
+  decisionNow: "r2-ex4-decision",
+  confidence: "r2-ex4-confidence",
+  changeMyMind: "r2-ex4-changemymind",
+  checkMemo: "r2-ex4-check",
+  selfAssessment: "r2-ex4-selfassessment",
 
-  measure: "r2-s5",
-  firstMeasure: "r2-s5-option",
-  justification: "r2-s5-justification",
-  committedBudget: "r2-s5-budget",
-
-  governance: "r2-s6",
-  raciRow: (id: string) => `r2-s6-row-${id}`,
-  reviewMechanism: "r2-s6-review",
-
-  decideNow: "r2-s7",
-  decisionNow: "r2-s7-decision",
-  confidence: "r2-s7-confidence",
-  changeMyMind: "r2-s7-changemymind",
-
-  selfAssessment: "r2-selfassessment",
-  checkMemo: "r2-check",
   memo: "r2-memo",
   memoSection: (n: number) => `r2-memo-${n}`,
 
@@ -84,11 +97,26 @@ const NO_BOOLS: Record<string, boolean> = {};
 
 export type GuidingDecision = { text: string; owner: RoleId | null; quarter: Quarter | null };
 
+export type TradeoffPairState = {
+  link: TradeOffLink;
+  /** Derived from the two diagnostic answers — never chosen directly. Null while either answer is missing. */
+  quadrant: TradeoffQuadrantId | null;
+  /** Position among the pairs sharing this quadrant, for the map layout. */
+  slotIndex: number;
+  slotCount: number;
+};
+
 /**
  * Joins the shared progress store to Route 2's content — the material's
- * read/opened state and the whole seven-section task, one hook. Until the
- * store has hydrated it reads as empty, matching the statically exported HTML
- * (Route 1's useRoute1 does the same, for the same hydration-safety reason).
+ * read/opened state and the whole task, one hook. Until the store has
+ * hydrated it reads as empty, matching the statically exported HTML (Route
+ * 1's useRoute1 does the same, for the same hydration-safety reason).
+ *
+ * Phase 3 note: every field this hook returns keeps its Phase-2 name. Only
+ * the *component* that reads each field changed (nine section components →
+ * four exercise components) — the state shape underneath, and therefore
+ * MemoPreview.tsx and exportDocuments.ts which read it, did not need to
+ * change at all.
  */
 export function useRoute2() {
   const hydrated = useHydrated();
@@ -107,11 +135,11 @@ export function useRoute2() {
   // -- Material ---------------------------------------------------------------
   const hotspotsRead = ["h1", "h2", "h3", "h4", "h5", "h6"].filter((id) => checks[R2.hotspotRead(id)]).length;
 
-  // -- Section 1: strategic relevance ------------------------------------------
+  // -- Exercise 1a: strategic relevance ----------------------------------------
   const relevanceSelected = RELEVANCE_DRIVERS.map((d) => d.id).filter((id) => checks[R2.relevance(id)]) as RelevanceId[];
   const relevanceRationale = notes[R2.relevanceRationale] ?? "";
 
-  // -- Section 2: guiding decisions ---------------------------------------------
+  // -- Exercise 1b: guiding decisions -------------------------------------------
   const guidingDecisions: GuidingDecision[] = ([1, 2, 3] as const).map((n) => {
     const owner = choices[R2.guidingOwner(n)];
     const quarter = choices[R2.guidingQuarter(n)];
@@ -122,21 +150,36 @@ export function useRoute2() {
     };
   });
 
-  // -- Section 3: decision logic -------------------------------------------------
+  // -- Exercise 1c: decision logic -----------------------------------------------
   const criteriaOrder = parseCriteriaOrder(notes[R2.criteriaRank]);
   const boundary = notes[R2.boundary] ?? "";
 
-  // -- Section 4: trade-offs -------------------------------------------------------
+  // -- Exercise 2: the trade-off map ---------------------------------------------
   const tradeOffLinks = parseLinks(notes[R2.tradeOffs]);
-  const pendingLink = choices[R2.pendingLink] || null;
+  const rawPendingLink = choices[R2.pendingLink];
+  const pendingLink = isFactorId(rawPendingLink) ? rawPendingLink : null;
 
-  // -- Section 5: first measure ---------------------------------------------------
+  const tradeoffBase = tradeOffLinks.map((link) => ({
+    link,
+    quadrant: link.q1 && link.q2 ? tradeoffQuadrantFor(link.q1 === "yes", link.q2 === "yes") : null,
+  }));
+  const tradeoffStates: TradeoffPairState[] = tradeoffBase.map((s) => {
+    const sharing = tradeoffBase.filter((o) => o.quadrant !== null && o.quadrant === s.quadrant);
+    return {
+      ...s,
+      slotIndex: s.quadrant ? sharing.findIndex((o) => o.link.a === s.link.a && o.link.b === s.link.b) : 0,
+      slotCount: s.quadrant ? sharing.length : 0,
+    };
+  });
+  const placedTradeoffCount = tradeoffStates.filter((s) => s.quadrant).length;
+
+  // -- Exercise 4a: first measure -------------------------------------------------
   const rawMeasure = choices[R2.firstMeasure];
   const firstMeasure: OptionId | null = isOptionId(rawMeasure) ? rawMeasure : null;
   const justification = notes[R2.justification] ?? "";
   const committedBudgetAnswer = notes[R2.committedBudget] ?? "";
 
-  // -- Section 6: governance --------------------------------------------------------
+  // -- Exercise 3: governance --------------------------------------------------------
   const raciValue = (responsibilityId: string, roleId: string): RaciCell => {
     const v = choices[R2.raci(responsibilityId, roleId)];
     return v === "R" || v === "A" || v === "C" || v === "I" ? v : "";
@@ -151,11 +194,11 @@ export function useRoute2() {
   const raciTouched = (id: string) => ROLES.some((r) => raciValue(id, r.id) !== "");
   const reviewMechanism = notes[R2.reviewMechanism] ?? "";
 
-  // -- Section 7: decide now -------------------------------------------------------
+  // -- Exercise 4b: decide now -------------------------------------------------------
   const decisionNow = notes[R2.decisionNow] ?? "";
   // Confidence has no "unset" state — 0 is itself a meaningful reading, unlike
   // Route 1's 1..N predict sliders where 0 means "not touched". It is also not
-  // a required field (§10 never lists it), so it simply defaults to a midpoint.
+  // a required field (never listed in `missing`), so it simply defaults to a midpoint.
   const confidence = Number(choices[R2.confidence] ?? "50") || 0;
   const changeMyMind = notes[R2.changeMyMind] ?? "";
 
@@ -179,50 +222,46 @@ export function useRoute2() {
     8: decisionNow.trim().length > 0,
   } as Record<number, boolean>;
 
-  // -- Missing list (§10, literal strings; standard #1: one per concrete gap) ------
+  // -- Missing list (standard #1: one entry per concrete gap, in page order) -------
   const missing: MissingItem[] = [];
 
   if (!name.trim()) missing.push({ id: domId.name, label: "Participant name not entered — export filename will be incomplete" });
 
   if (relevanceSelected.length !== RELEVANCE_REQUIRED) {
-    missing.push({ id: domId.relevanceDriver, label: `Section 1 — Strategic relevance: ${relevanceSelected.length} of ${RELEVANCE_REQUIRED} drivers selected` });
+    missing.push({ id: domId.relevanceDriver, label: `Exercise 1 — Strategic relevance: ${relevanceSelected.length} of ${RELEVANCE_REQUIRED} drivers selected` });
   }
   if (relevanceRationale.trim().length < SECTION_1.rationale.min) {
-    missing.push({ id: domId.relevanceRationale, label: `Section 1 — Rationale is ${relevanceRationale.trim().length} characters, needs at least ${SECTION_1.rationale.min}` });
+    missing.push({ id: domId.relevanceRationale, label: `Exercise 1 — Rationale is ${relevanceRationale.trim().length} characters, needs at least ${SECTION_1.rationale.min}` });
+  }
+
+  if (criteriaOrder.length < RANK_SLOTS) {
+    missing.push({ id: domId.criteriaRank, label: `Exercise 1 — Decision-logic ranking incomplete (${criteriaOrder.length} of ${RANK_SLOTS} placed)` });
+  }
+  if (boundary.trim().length < SECTION_3.boundary.min) {
+    missing.push({ id: domId.boundary, label: "Exercise 1 — Assessment boundary not stated" });
   }
 
   guidingDecisions.forEach((g, i) => {
     const n = i + 1;
-    if (!g.text.trim()) missing.push({ id: domId.guidingText(n as 1 | 2 | 3), label: `Section 2 — Guiding decision ${n}: text empty` });
-    if (!g.owner) missing.push({ id: domId.guidingOwner(n as 1 | 2 | 3), label: `Section 2 — Guiding decision ${n}: owner not assigned` });
-    if (!g.quarter) missing.push({ id: domId.guidingQuarter(n as 1 | 2 | 3), label: `Section 2 — Guiding decision ${n}: quarter not assigned` });
+    if (!g.text.trim()) missing.push({ id: domId.guidingText(n as 1 | 2 | 3), label: `Exercise 1 — Guiding decision ${n}: text empty` });
+    if (!g.owner) missing.push({ id: domId.guidingOwner(n as 1 | 2 | 3), label: `Exercise 1 — Guiding decision ${n}: owner not assigned` });
+    if (!g.quarter) missing.push({ id: domId.guidingQuarter(n as 1 | 2 | 3), label: `Exercise 1 — Guiding decision ${n}: quarter not assigned` });
   });
 
-  if (criteriaOrder.length < RANK_SLOTS) {
-    missing.push({ id: domId.criteriaRank, label: `Section 3 — Criteria ranking incomplete (${criteriaOrder.length} of ${RANK_SLOTS} placed)` });
-  }
-  if (boundary.trim().length < SECTION_3.boundary.min) {
-    missing.push({ id: domId.boundary, label: "Section 3 — Assessment boundary not stated" });
-  }
-
   if (tradeOffLinks.length < TRADEOFF_MIN) {
-    missing.push({ id: domId.tradeoffs, label: `Section 4 — Only ${tradeOffLinks.length} trade-off drawn, at least ${TRADEOFF_MIN} required` });
+    missing.push({ id: domId.tradeoffs, label: `Exercise 2 — Only ${tradeOffLinks.length} trade-off pair drawn, at least ${TRADEOFF_MIN} required` });
   }
-  for (const link of tradeOffLinks) {
-    if (!link.note.trim()) {
-      missing.push({
-        id: domId.tradeoffNote(link.a, link.b),
-        label: `Section 4 — Trade-off "${factorLabel(link.a)} ↔ ${factorLabel(link.b)}": note empty`,
-      });
+  for (const s of tradeoffStates) {
+    const short = `${factorLabel(s.link.a)} ↔ ${factorLabel(s.link.b)}`;
+    if (!s.link.q1) {
+      missing.push({ id: domId.tradeoffQ1(s.link.a, s.link.b), label: `Exercise 2 — "${short}": cost question not answered` });
     }
-  }
-
-  if (!firstMeasure) missing.push({ id: domId.firstMeasure, label: "Section 5 — First measure not selected" });
-  if (justification.trim().length < SECTION_5.justification.min) {
-    missing.push({ id: domId.justification, label: `Section 5 — Justification is ${justification.trim().length} characters, needs at least ${SECTION_5.justification.min}` });
-  }
-  if (committedBudgetAnswer.trim().length < SECTION_5.budgetQuestion.min) {
-    missing.push({ id: domId.committedBudget, label: "Section 5 — Committed-budget question not answered" });
+    if (!s.link.q2) {
+      missing.push({ id: domId.tradeoffQ2(s.link.a, s.link.b), label: `Exercise 2 — "${short}": friction question not answered` });
+    }
+    if (!s.link.note.trim()) {
+      missing.push({ id: domId.tradeoffNote(s.link.a, s.link.b), label: `Exercise 2 — "${short}": note empty` });
+    }
   }
 
   for (const resp of RESPONSIBILITIES) {
@@ -230,19 +269,27 @@ export function useRoute2() {
     if (accountable.length !== 1) {
       missing.push({
         id: domId.raciRow(resp.id),
-        label: `Section 6 — Responsibility "${resp.label}": ${accountable.length === 0 ? "no accountable role assigned" : "more than one accountable role assigned"}`,
+        label: `Exercise 3 — Responsibility "${resp.label}": ${accountable.length === 0 ? "no accountable role assigned" : "more than one accountable role assigned"}`,
       });
     }
   }
   if (reviewMechanism.trim().length < SECTION_6.review.min) {
-    missing.push({ id: domId.reviewMechanism, label: "Section 6 — Review mechanism not described" });
+    missing.push({ id: domId.reviewMechanism, label: "Exercise 3 — Review mechanism not described" });
+  }
+
+  if (!firstMeasure) missing.push({ id: domId.firstMeasure, label: "Exercise 4 — First measure not selected" });
+  if (justification.trim().length < SECTION_5.justification.min) {
+    missing.push({ id: domId.justification, label: `Exercise 4 — Justification is ${justification.trim().length} characters, needs at least ${SECTION_5.justification.min}` });
+  }
+  if (committedBudgetAnswer.trim().length < SECTION_5.budgetQuestion.min) {
+    missing.push({ id: domId.committedBudget, label: "Exercise 4 — Committed-budget question not answered" });
   }
 
   if (decisionNow.trim().length < SECTION_7.decision.min) {
-    missing.push({ id: domId.decisionNow, label: `Section 7 — Decision under uncertainty is ${decisionNow.trim().length} characters, needs at least ${SECTION_7.decision.min}` });
+    missing.push({ id: domId.decisionNow, label: `Exercise 4 — Decision under uncertainty is ${decisionNow.trim().length} characters, needs at least ${SECTION_7.decision.min}` });
   }
   if (!changeMyMind.trim()) {
-    missing.push({ id: domId.changeMyMind, label: 'Section 7 — "What would change your mind?" is empty' });
+    missing.push({ id: domId.changeMyMind, label: 'Exercise 4 — "What would change your mind?" is empty' });
   }
 
   return {
@@ -258,6 +305,8 @@ export function useRoute2() {
     boundary,
     tradeOffLinks,
     pendingLink,
+    tradeoffStates,
+    placedTradeoffCount,
     firstMeasure,
     justification,
     committedBudgetAnswer,

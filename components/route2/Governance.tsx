@@ -1,35 +1,30 @@
 "use client";
 
 import { useProgress } from "@/lib/store";
-import { MaterialRefs } from "@/components/ui/MaterialRefs";
 import { RaciGrid } from "@/components/ui/RaciGrid";
 import { UndoRedoControls } from "@/components/ui/UndoRedoControls";
-import { R2, RESPONSIBILITIES, SECTION_6, materialRefs } from "@/lib/route2";
+import { EXERCISE_3, R2, RESPONSIBILITIES, SECTION_6 } from "@/lib/route2";
 import { useGovernanceRaciActions } from "./actions";
+import { ExerciseHeader } from "./ExerciseHeader";
 import { domId, type Route2State } from "./useRoute2";
 
-/** Section 6 — governance: a RACI grid (4 responsibilities × 6 roles) plus the review-mechanism field. */
-export function GovernanceSection({ r2 }: { r2: Route2State }) {
+/** Exercise 3 — governance: a RACI grid (4 responsibilities × 6 roles) plus the review-mechanism field. */
+export function Governance({ r2 }: { r2: Route2State }) {
   const setNote = useProgress((s) => s.setNote);
   const actions = useGovernanceRaciActions();
 
   return (
     <section id={domId.governance} className="scroll-mt-24 space-y-4 rounded-2xl border border-line bg-paper p-5">
       <div className="flex flex-wrap items-start justify-between gap-2">
-        <div>
-          <p className="text-micro font-semibold uppercase tracking-wide text-accent">Section {SECTION_6.n}</p>
-          <h3 className="mt-1 text-h3 text-ink">{SECTION_6.title}</h3>
-          <p className="mt-1 max-w-prose text-caption text-ash">{SECTION_6.helper}</p>
-          <MaterialRefs refs={materialRefs(["levers", "measure"])} />
-        </div>
+        <ExerciseHeader n={EXERCISE_3.n} title={EXERCISE_3.title} minutes={EXERCISE_3.minutes} intro={EXERCISE_3.intro} material={EXERCISE_3.material} />
         <UndoRedoControls onUndo={actions.undo} onRedo={actions.redo} canUndo={actions.canUndo} canRedo={actions.canRedo} />
       </div>
 
       <div>
-        {/* idPrefix matches domId.raciRow exactly, so RaciGrid's own row ids ("r2-s6-row-{id}")
+        {/* idPrefix matches domId.raciRow exactly, so RaciGrid's own row ids ("r2-ex3-row-{id}")
             are what the missing list and the check-on-demand clues scroll to and flash. */}
         <RaciGrid
-          idPrefix="r2-s6"
+          idPrefix="r2-ex3"
           rows={RESPONSIBILITIES}
           roles={r2.raciRoles}
           showCapacity={false}

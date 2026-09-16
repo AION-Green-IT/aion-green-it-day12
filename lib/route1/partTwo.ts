@@ -362,41 +362,63 @@ export const CRITERIA: Criterion[] = [
 
 export const criterionById = (id: CriterionId): Criterion => CRITERIA.find((c) => c.id === id)!;
 
-/** Rank 1 plots on the outer ring, rank 3 on the inner. */
-export const rankToRadar = (rank: Rank | null): number => (rank ? 4 - rank : 0);
-
-/** Mentor demo ranking: plausible practitioner judgement, deliberately not the model ranking. */
-export const SAMPLE_RANKS: Record<CriterionId, [OptionId, OptionId, OptionId]> = {
-  leverage: ["B", "A", "C"],
-  sustainability: ["B", "A", "C"],
-  innovation: ["C", "A", "B"],
-  feasibility: ["B", "C", "A"],
-  risk: ["B", "A", "C"],
-  longterm: ["B", "A", "C"],
-  controllability: ["A", "B", "C"],
-};
-
 // ---------------------------------------------------------------------------
-// The matrix and the radar
+// Buckets — the prediction unit for the shared grid (CLAUDE.md #14)
+//
+// Derived directly from each criterion's existing `expected` ranks, not new
+// judgement content: rank 1 (strongest) -> High, rank 2 -> Mid, rank 3
+// (weakest) -> Low. The ground-truth ranking itself (`Criterion.expected`)
+// is untouched.
 // ---------------------------------------------------------------------------
 
-export const MATRIX = {
-  title: "Rank the three options on each criterion",
-  instruction:
-    "Drag each option into a rank slot, or use its rank selector. Every row needs a 1, a 2 and a 3 — no ties. Giving an option a rank that is already taken swaps the two.",
-  rankRule:
-    "Rank 1 = the strongest option on this criterion. For Risk, strongest means the least exposure if your assumptions prove wrong.",
-  unranked: "not fully ranked",
-  tray: "Not yet ranked",
-};
+export type Bucket = "low" | "mid" | "high";
 
-export const RADAR = {
-  title: "Your ranking as a profile",
-  howToRead:
-    "Rank 1 plots on the outer ring, rank 3 on the inner. Each option has its own line pattern and marker shape, so the chart does not rely on colour.",
-  caveat:
-    "Rank sum is a summary of your own judgement, not a score of correctness — a low sum does not automatically mean the right choice.",
-};
+export const BUCKETS: { id: Bucket; label: string; letter: string }[] = [
+  { id: "low", label: "Low", letter: "L" },
+  { id: "mid", label: "Mid", letter: "M" },
+  { id: "high", label: "High", letter: "H" },
+];
+
+export const bucketLabel = (b: Bucket | null): string => (b ? BUCKETS.find((x) => x.id === b)!.label : "—");
+export const bucketLetter = (b: Bucket | null): string => (b ? BUCKETS.find((x) => x.id === b)!.letter : "·");
+
+/** Cycles blank → Low → Mid → High → blank, for a single tap per cell. */
+const BUCKET_CYCLE: (Bucket | null)[] = [null, "low", "mid", "high"];
+export const nextBucket = (current: Bucket | null): Bucket | null =>
+  BUCKET_CYCLE[(BUCKET_CYCLE.indexOf(current) + 1) % BUCKET_CYCLE.length];
+
+/** Rank 1 -> High, rank 2 -> Mid, rank 3 -> Low. The one place the rank ground truth becomes a bucket. */
+export function bucketForRank(rank: Rank): Bucket {
+  if (rank === 1) return "high";
+  if (rank === 2) return "mid";
+  return "low";
+}
+
+const RANK_BUCKET_WORD: Record<Rank, string> = { 1: "High", 2: "Mid", 3: "Low" };
+
+/**
+ * The existing per-criterion answer key, relabelled from rank language to
+ * bucket language for the mentor-only display next to the grid. Every "why"
+ * and the teaching note are the authored content, verbatim — only the
+ * option/prompt labels ("B ranked 1" -> "B — High") are rewritten, mechanically,
+ * from the same `expected` ranks the rest of the file already carries.
+ */
+export function criterionAnswerKey(c: Criterion): AnswerKeyBlock {
+  return {
+    ...c.answerKey,
+    prompt: c.answerKey.prompt.replace(/model ranking/i, "model profile"),
+    items: c.answerKey.items.map((item) => {
+      const m = item.option.match(/^([ABC]) ranked (\d)/);
+      if (!m) return item;
+      return { ...item, option: `${m[1]} — ${RANK_BUCKET_WORD[Number(m[2]) as Rank]}` };
+    }),
+  };
+}
+
+/** The authored "why" for one option on one criterion — reused as the grid's post-reveal reasoning, not new content. */
+export function criterionCellWhy(c: Criterion, optionId: OptionId): string {
+  return c.answerKey.items.find((item) => item.option.startsWith(optionId))?.why ?? "";
+}
 
 // ---------------------------------------------------------------------------
 // The commit
@@ -437,7 +459,7 @@ export const COMMIT = {
     promptUnknown:
       "Rank Innovation benefit and Feasibility first — this question is built from your own ranking of those two rows.",
     howComputed:
-      "Short-term attractiveness is read from your own ranks on Innovation benefit plus Feasibility: the option with the lowest combined rank.",
+      "Short-term attractiveness is read from your own predicted profile on Innovation benefit plus Feasibility: the option with the highest combined bucket.",
     instruction:
       "Name a concrete consequence, not a general worry — a layer that stays on, a fleet that needs replacing, a saving that is never measured.",
     samples: [
@@ -490,24 +512,6 @@ export function analyseJustification(text: string): JustificationSignals {
   };
 }
 
-export const REASONING_CHECK = {
-  label: "Check my reasoning",
-  recheckLabel: "Check again",
-  lead: "Clues from your ranking and your justification",
-  clean:
-    "Your ranking and your justification do not contradict each other on anything the check can read. It cannot judge the argument itself — read it once more against the stated constraints.",
-  noChoice:
-    "Choose a prioritised option first — the check reads your justification against your own ranking of that option.",
-  flat: (option: OptionId) =>
-    `No option is superior on every dimension — you ranked Option ${option} first on all seven. Re-read your Risk and Feasibility rows against the stated budget constraint.`,
-  mismatch: (argues: string) =>
-    `Your justification argues for ${argues}, but your own ranking places this option last on that criterion. One of the two needs revisiting.`,
-  noBoundary: "S5 asked 'compared to what, over which perimeter?' — your justification does not yet say.",
-  noReview: "Your justification does not yet name a review point — when would you know whether to revise?",
-  noFalsifier:
-    "Your justification does not yet say what would falsify it — which indicator, showing what, would make you change course?",
-};
-
 export const SOFT_CHECK = {
   review: "No review point detected yet — when will you look at this again?",
   falsifier: "No falsification condition detected yet — what result would make you revise?",
@@ -522,4 +526,14 @@ export const PART_TWO = {
   minutes: 15,
   meansLabel: "What this concretely means",
   templateLabel: "Show the S7 justification template",
+  predictHeading: "Profile all three options, one grid",
+  predictInstruction:
+    "Tap a cell to cycle Low → Mid → High. Set what you can across all 21 cells before you reveal — the comparison only means something if there is a judgement behind it.",
+  revealLabel: "Reveal the model profile",
+  revealedLabel: "Model profile revealed",
+  gapHeading: "Where your profile and the model profile differ",
+  gapEmpty:
+    "Every cell you set matches the model profile. Read the reasoning below anyway — the reasoning matters more than getting the bucket right.",
+  gapNone: "You haven't profiled anything yet — set some cells above, then reveal.",
+  allReasoningLabel: "See the reasoning behind every cell, all three options",
 };

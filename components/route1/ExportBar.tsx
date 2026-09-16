@@ -69,11 +69,11 @@ export function ExportBar() {
         <div className="flex flex-wrap items-center gap-x-1.5 gap-y-1">
           <button type="button" onClick={() => setShowMissing((v) => !v)} className="flex flex-wrap items-center gap-x-1.5 text-caption text-ash hover:text-ink">
             <span>
-              <span className="tabular-nums font-semibold text-ink">{r1.tally.complete}</span> / {r1.tally.total} signals complete
+              <span className="tabular-nums font-semibold text-ink">{r1.triageCompleteCount}</span> / {r1.tally.total} signals triaged
             </span>
             <span className="text-ash">·</span>
             <span>
-              <span className="tabular-nums font-semibold text-ink">{r1.rankedRows}</span> / 7 criteria ranked
+              <span className="tabular-nums font-semibold text-ink">{r1.totalPredicted}</span> / {r1.totalCells} cells profiled
             </span>
             {r1.missing.length > 0 && (
               <>

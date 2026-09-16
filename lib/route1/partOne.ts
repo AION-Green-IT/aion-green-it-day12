@@ -209,6 +209,15 @@ export type SignalSample = {
   horizon: Horizon;
 };
 
+/**
+ * A signal's text, broken into tappable spans for the triage step. A plain
+ * string renders as-is; `{ text, decisive }` renders as a tappable phrase —
+ * `decisive: true` is the one phrase that actually proves the root-cause tag,
+ * the rest are texture or a plausible-but-wrong anchor. Joined end to end the
+ * segments reproduce `text` exactly; nothing here changes what the signal says.
+ */
+export type Segment = string | { text: string; decisive: boolean };
+
 export type Signal = {
   id: string;
   n: number;
@@ -216,6 +225,8 @@ export type Signal = {
   title: string;
   /** The signal exactly as the curriculum states it. */
   text: string;
+  /** The same text, broken into tappable evidence phrases for the triage step. */
+  segments: Segment[];
   /** Expected primary zone, and every zone the answer key accepts as defensible. */
   zone: ZoneId;
   acceptableZones: ZoneId[];
@@ -224,10 +235,14 @@ export type Signal = {
   rootCause: RootCause;
   horizon: Horizon;
   /**
-   * Directional clue for "Check my routing" when the chosen zone is outside
+   * Directional clue for the deep-dive check when the chosen zone is outside
    * the defensible set. Points at the reasoning, never at a zone name.
    */
   clue: string;
+  /** Triage-step reasoning — why the root-cause tag holds, shown after two checks or once the whole set holds. */
+  triageWhy: string;
+  /** Deep-dive reasoning — why the area and horizon hold, shown together after two checks or once they hold. */
+  analysisWhy: string;
   material: MaterialSectionId[];
   /** Mentor demo fill: plausible practitioner work, deliberately not the key. */
   sample: SignalSample;
@@ -240,6 +255,12 @@ export const SIGNALS: Signal[] = [
     n: 1,
     title: "Always-on legacy infrastructure",
     text: "The existing network infrastructure is partly outdated and permanently active, regardless of actual load.",
+    segments: [
+      { text: "The existing network infrastructure is partly outdated", decisive: false },
+      " and ",
+      { text: "permanently active, regardless of actual load", decisive: true },
+      ".",
+    ],
     zone: "network",
     acceptableZones: ["network", "energy"],
     reading: "risk",
@@ -247,6 +268,10 @@ export const SIGNALS: Signal[] = [
     rootCause: "technology",
     horizon: "short",
     clue: "Signal 1 describes equipment that stays switched on whatever the load. Ask which part of the system decides what is switched on and when — not where the electricity bill finally lands.",
+    triageWhy:
+      "Modern, load-adaptive equipment and enabled sleep states remove always-on draw — that is a technology-use fix. Nothing about it requires a new approval process, which is what would make it governance instead.",
+    analysisWhy:
+      "Network Operations — the defect is an operating mode: capacity powered for uptime rather than for load. Load-adaptive operation and sleep states are Network Operations levers. Visible short-term — enabling deactivation windows on existing equipment shows in the current operating year's consumption.",
     material: ["infrastructure", "levers"],
     sample: {
       reading: "risk",
@@ -294,6 +319,12 @@ export const SIGNALS: Signal[] = [
     n: 2,
     title: "Large-scale sensor rollout",
     text: "New IoT sensors are to be introduced in large numbers across production and buildings.",
+    segments: [
+      { text: "New IoT sensors are to be introduced", decisive: false },
+      " in ",
+      { text: "large numbers across production and buildings", decisive: true },
+      ".",
+    ],
     zone: "iot",
     acceptableZones: ["iot", "lifecycle"],
     reading: "both",
@@ -301,6 +332,10 @@ export const SIGNALS: Signal[] = [
     rootCause: "governance",
     horizon: "structural",
     clue: "Signal 2 is about how many things are being connected. Ask where that number first becomes a physical fact — before any energy, data or disposal follows from it.",
+    triageWhy:
+      "Better sensors lower the impact per device, not the count. The fix is criteria at procurement — a governance decision about how many devices are justified, not an equipment choice.",
+    analysisWhy:
+      "IoT Devices — the signal is the device count itself, and fleet impact is device count × lifetime × replacement rate × data generated. Structurally effective — selection criteria change how every later device decision is made.",
     material: ["iot"],
     sample: {
       reading: "both",
@@ -360,6 +395,12 @@ export const SIGNALS: Signal[] = [
     n: 3,
     title: "Battery-powered devices",
     text: "Battery-powered devices are planned for several areas of application.",
+    segments: [
+      { text: "Battery-powered devices", decisive: false },
+      " are ",
+      { text: "planned for several areas of application", decisive: true },
+      ".",
+    ],
     zone: "lifecycle",
     acceptableZones: ["lifecycle", "iot"],
     reading: "risk",
@@ -367,6 +408,10 @@ export const SIGNALS: Signal[] = [
     rootCause: "governance",
     horizon: "structural",
     clue: "Reconsider whether Signal 3 is really about power draw — or about how long devices stay in service, and what happens every time a battery runs out.",
+    triageWhy:
+      "A longer-life battery only postpones the replacement programme; it does not remove it. The fix is a power-supply architecture decision per application area — governance, not equipment.",
+    analysisWhy:
+      "Life Cycle — batteries convert an energy problem into a maintenance and waste problem at fleet scale; the effect first becomes real as a replacement programme and an e-waste stream. Structurally effective — the criterion changes every future device purchase; its effect is not visible in this year's consumption.",
     material: ["iot"],
     sample: {
       reading: "risk",
@@ -419,6 +464,13 @@ export const SIGNALS: Signal[] = [
     n: 4,
     title: "Data collected, not analysed",
     text: "Data is collected from many sources, but not all of it is actually analysed.",
+    segments: [
+      "Data is ",
+      { text: "collected from many sources", decisive: false },
+      ", but ",
+      { text: "not all of it is actually analysed", decisive: true },
+      ".",
+    ],
     zone: "data",
     acceptableZones: ["data", "management"],
     reading: "risk",
@@ -426,6 +478,10 @@ export const SIGNALS: Signal[] = [
     rootCause: "technology",
     horizon: "short",
     clue: "Signal 4 is about data that is produced and moved but never used. Ask where that unused data first costs something — before anyone decides anything about it.",
+    triageWhy:
+      "Polling intervals, telemetry frequency, payload size and duplicate streams are settings. Changing how the technology is used removes the waste without buying anything or creating a new approval process.",
+    analysisWhy:
+      "Data Volume — unanalysed data is still transmitted, stored and processed; the effect first becomes real as volume, energy spent on data nobody uses. Visible short-term — moving unused streams to event-driven transmission reduces volume inside the operating year.",
     material: ["iot", "levers"],
     sample: {
       reading: "risk",
@@ -478,6 +534,12 @@ export const SIGNALS: Signal[] = [
     n: 5,
     title: "5G expanded for speed and flexibility",
     text: "5G applications are to be expanded mainly because of speed and flexibility.",
+    segments: [
+      { text: "5G applications are to be expanded", decisive: false },
+      " ",
+      { text: "mainly because of speed and flexibility", decisive: true },
+      ".",
+    ],
     zone: "fiveg",
     acceptableZones: ["fiveg", "management"],
     reading: "risk",
@@ -485,6 +547,10 @@ export const SIGNALS: Signal[] = [
     rootCause: "governance",
     horizon: "structural",
     clue: "Signal 5 names a reason for expanding a technology. Ask where that reason is supposed to be tested before anything is deployed.",
+    triageWhy:
+      "A more efficient radio unit does not answer whether the use case needed 5G at all. The missing piece is a qualification rule that tests the reason before anything is deployed — a governance decision.",
+    analysisWhy:
+      "5G Use — the signal is about why 5G capacity gets deployed; 'speed and flexibility' is not a requirement until a use-case qualifier has tested it. Structurally effective — a qualification rule changes every later deployment decision.",
     material: ["fiveg"],
     sample: {
       reading: "both",
@@ -544,6 +610,13 @@ export const SIGNALS: Signal[] = [
     n: 6,
     title: "No integrated lifecycle assessment",
     text: "There is no integrated sustainability or lifecycle assessment for network and IoT decisions.",
+    segments: [
+      "There is ",
+      { text: "no integrated sustainability or lifecycle assessment", decisive: true },
+      " ",
+      { text: "for network and IoT decisions", decisive: false },
+      ".",
+    ],
     zone: "management",
     acceptableZones: ["management", "lifecycle"],
     reading: "risk",
@@ -551,6 +624,10 @@ export const SIGNALS: Signal[] = [
     rootCause: "governance",
     horizon: "structural",
     clue: "Re-read what Signal 6 actually describes: not a component or a device, but the absence of a process.",
+    triageWhy:
+      "No equipment purchase creates an assessment process. Only a governance decision — naming an owner and a review cadence — closes this gap.",
+    analysisWhy:
+      "Management Logic — the signal describes the absence of an assessment inside the decision process; nothing in it is a component, everything in it is how decisions are made. Structurally effective — an assessment changes how every future network and IoT decision is made; its first effect is on decisions, not on this year's consumption.",
     material: ["system", "iot", "infrastructure"],
     sample: {
       reading: "risk",
@@ -614,26 +691,138 @@ export function signalExcerpt(signal: Signal, words = 6): string {
 
 export const PART_ONE = {
   id: "part-1",
-  tag: "PART 1 · DIAGNOSE — THE SIGNAL BOARD",
+  tag: "PART 1 · DIAGNOSE",
   title: "Six signals from SmartLink's plan",
   minutes: 15,
   framing:
-    "Placement is the result of a diagnosis. Open a signal, read it, and answer the two diagnostic questions — the card then routes itself to the zone you chose. Complete it in place with an improvement approach, the root cause and the time horizon. Work in any order and re-route any card at any time; undo and redo with the buttons or Ctrl/⌘+Z and Ctrl/⌘+Shift+Z. When you are ready, Check my routing reads the pattern of your board and gives clues — never answers.",
-  stepA: "Step A · Read the signal",
-  stepB: "Step B · Two diagnostic questions",
-  stepC: "Step C · Routing",
-  stepD: "Step D · Complete it in place",
-  referenceLevers: "Reference: Lever Map",
-  referenceWheel: "Reference: IoT Lifecycle Wheel",
-  moveLabel: "Move signal",
-  intake: "Intake",
-  waitingToRoute: "Answer both questions and the card routes itself.",
-  stepDPlaceholder:
-    "Improvement approach, root cause and time horizon open here once the signal lands in a zone.",
-  checkLabel: "Check my routing",
+    "You will not have time to give all six signals a full workup, and that is deliberate: triage all six shallowly, then escalate the two that most deserve a closer look.",
+} as const;
+
+export const TRIAGE = {
+  step: "Step 1",
+  title: "Triage all six signals",
+  minutes: 6,
+  intro:
+    "For each signal, tag the root cause and tap the phrase in the signal itself that proves your tag. Check the set when you're done — the check reports how many rows hold, never which ones, since the tag is a two-way choice.",
+  material: ["infrastructure", "levers", "iot", "fiveg"] as MaterialSectionId[],
+  rule: {
+    label: "Rule from the material — your anchor",
+    text: "Run the equipment test: would better or more efficient equipment remove this problem, or only postpone it? If equipment fixes it: technology use. If nothing about the equipment changes what is still missing: a missing governance or architecture decision.",
+  },
+  becauseLabel: "Because",
+  evidencePrompt: "Tap the phrase in the signal that proves your tag.",
+  checkLabel: "Check my triage",
   recheckLabel: "Check again",
-  checkTooEarly: "Route at least two signals first — the check reads patterns across the board, not a single card.",
-  checkClean:
-    "Nothing in the pattern of your routing contradicts the material. That is not a verdict on each card — keep testing your improvement approaches against S1–S4.",
-  checkLead: "Clues from the pattern of your board",
+  clueLabel: "Need a clue?",
+  clueText:
+    "The decisive phrase in every signal is now marked. Read it again against the rule above, then retag the ones that don't fit yet.",
+  revealAfter: 2,
+  revealLabel: "Show the reasoning",
+  whyHolds: "Why this holds",
+  whyNot: "Why this doesn't hold yet",
+  result: (ok: number, total: number) =>
+    ok === total
+      ? `All ${total} hold up — tag and evidence.`
+      : `${ok} of ${total} hold up. A row holds when the tag is right and the phrase you tapped is the one that decides it.`,
+  incomplete: (items: string[]) => `Before checking: ${items.join("; ")}.`,
+  stale: "You've changed an answer since the last check — check again to see where you stand now.",
+  revealNote: (at: number) => `Reasoning shown after ${at} check${at === 1 ? "" : "s"} — recorded in the export.`,
+} as const;
+
+export const ESCALATE = {
+  step: "Step 2",
+  title: "Escalate two for a deeper look",
+  minutes: 2,
+  limit: 2,
+  intro:
+    "You will not analyse all six in depth — pick the two signals that most deserve it, and say why. This is the actual level-1 skill: judging where attention pays off, not processing everything to the same depth.",
+  material: ["levers"] as MaterialSectionId[],
+  fullNote: "Two are already selected. Remove one first, then choose a different signal.",
+  whyField: {
+    label: "Why these two?",
+    instruction:
+      "One or two sentences. Argue from leverage — what's expensive, structural, or explains other findings — not from what's easiest to write about.",
+    placeholder: "e.g. These two are structural rather than short-term, and each explains a pattern the other four don't…",
+  },
+} as const;
+
+export const DEEP_DIVE = {
+  kicker: "Deep dive",
+  step: "Step 3",
+  title: "Analyse your two",
+  minutes: 7,
+  intro: "Full workup: area affected, sustainability reading, time horizon, and the improvement approach you'd take.",
+  triageReminder: "Your triage",
+  notTriaged: "You have not tagged this signal's root cause yet — do that in Step 1 first.",
+  checkLabel: "Check area & horizon",
+  recheckLabel: "Check again",
+  checkScope: "Checks the area and time horizon together — never your wording.",
+  clueLabel: "Need a clue?",
+  revealAfter: 2,
+  revealLabel: "Show the reasoning",
+  incomplete: "Pick an area and a time horizon before checking.",
+  holds: "That holds up — area and horizon both fit. Carry on with the reading and the improvement approach.",
+  wrong: "That doesn't hold up yet. Look again, or ask for a clue.",
+  stale: "You've changed an answer since the last check — check again to see where you stand now.",
+  whyLabel: "Why",
+  revealNote: "Reasoning shown after two checks — recorded in the export.",
+} as const;
+
+// ---------------------------------------------------------------------------
+// Mentor-only answer keys for the two set-level checks (CLAUDE.md #7)
+// ---------------------------------------------------------------------------
+
+export const TRIAGE_ANSWER_KEY: AnswerKeyBlock = {
+  prompt: "Triage — expected tag and decisive phrase per signal",
+  items: SIGNALS.map((s) => {
+    const decisive = s.segments.find(
+      (seg): seg is { text: string; decisive: boolean } => typeof seg !== "string" && seg.decisive,
+    );
+    const label = ROOT_CAUSES.find((r) => r.id === s.rootCause)!.label;
+    return {
+      option: `Signal ${s.n} — ${s.title}`,
+      verdict: "pick" as const,
+      why: `${label}, because "${decisive?.text}". ${s.triageWhy}`,
+    };
+  }),
+  teachingNote:
+    "Every row's non-decisive phrase is a plausible wrong anchor, not a distractor for its own sake — Signal 1's 'partly outdated' reads like a hardware-replacement story, Signal 6's 'for network and IoT decisions' reads like a technology-domain finding. A learner who ends up on the wrong tag has usually anchored on that phrase.",
+};
+
+export const ESCALATION_ANSWER_KEY: AnswerKeyBlock = {
+  prompt: "Which two signals are worth escalating",
+  items: [
+    {
+      option: "Signal 2 — Large-scale sensor rollout",
+      verdict: "pick",
+      why: "Structural and device-count driven: the fix is procurement criteria that changes every future purchase. A strong pick if the rationale is 'fix the decision that multiplies'.",
+    },
+    {
+      option: "Signal 5 — 5G expanded for speed and flexibility",
+      verdict: "pick",
+      why: "The clearest case of an unqualified reason driving deployment, with a traceable fix — a qualification gate. A strong pick if the rationale is 'stop the rebound before it's built'.",
+    },
+    {
+      option: "Signal 6 — No integrated lifecycle assessment",
+      verdict: "pick",
+      why: "The multiplier signal — it explains why findings like the others keep recurring across decisions. A strong pick if the rationale is 'fix the cause of the causes'.",
+    },
+    {
+      option: "Signal 3 — Battery-powered devices",
+      verdict: "pick",
+      why: "A structural finding with an easily missed reading — most people expect an energy story and find a lifecycle-and-waste one instead. A strong pick if the rationale is 'this is the signal most people misdiagnose'.",
+    },
+    {
+      option: "Signal 1 — Always-on legacy infrastructure",
+      verdict: "avoid",
+      why: "Real, but thin material for a deep dive: the fix is 'enable load-based deactivation' and the horizon is obviously short-term. Escalating it spends a slot on the easiest signal in the set.",
+    },
+    {
+      option: "Signal 4 — Data collected, not analysed",
+      verdict: "avoid",
+      why: "Real and cheap to fix — a settings change, not a decision — which makes it the shallowest structural question in the set. Escalating it alongside another quick win spends both slots on easy wins rather than two different structural questions.",
+    },
+  ],
+  teachingNote:
+    "There is no single correct pair. The assessment criterion is whether the written justification argues from leverage — what's expensive, structural or explains other findings — rather than from what happens to be quickest to write up. A pair of 1 and 4 with a leverage-based justification is a worse answer than a pair of 2 and 6 with none.",
 };

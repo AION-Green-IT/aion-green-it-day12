@@ -63,7 +63,7 @@ export function CommitPanel({ r1 }: { r1: Route1State }) {
                 </span>
                 <span className="mt-1 block text-caption text-ink">{o.short}</span>
                 <span className="mt-1 block text-micro tabular-nums text-ash">
-                  your rank sum: {r1.rankSums[o.id]} ({r1.rankedFor[o.id]}/7 ranked)
+                  predicted: {r1.optionStateById(o.id).predictedCount}/7 criteria
                 </span>
               </button>
             );
