@@ -131,7 +131,14 @@ export function MaterialBlock({
         </div>
       </details>
 
-      {footer}
+      {footer && (
+        <details className="group">
+          <summary className="cursor-pointer text-micro font-semibold uppercase tracking-wide text-accent">
+            Check your understanding (optional)
+          </summary>
+          <div className="mt-3">{footer}</div>
+        </details>
+      )}
     </Reveal>
   );
 }
